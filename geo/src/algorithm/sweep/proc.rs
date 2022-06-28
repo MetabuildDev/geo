@@ -36,25 +36,33 @@ impl<C: Cross + Clone> Sweep<C> {
     ///
     /// Calls the callback unless the event is spurious.
     #[inline]
-    pub(super) fn next_event<F>(&mut self, mut cb: F) -> Option<SweepPoint<C::Scalar>>
+    pub(super) fn next_event<F>(
+        &mut self,
+        mut cb: F,
+    ) -> Result<Option<SweepPoint<C::Scalar>>, Error>
     where
         F: for<'a> FnMut(&'a IMSegment<C>, EventType),
     {
-        self.events.pop().map(|event| {
+        if let Some(event) = self.events.pop() {
             let pt = event.point;
-            self.handle_event(event, &mut cb);
-
-            pt
-        })
+            self.handle_event(event, &mut cb)?;
+            Ok(Some(pt))
+        } else {
+            Ok(None)
+        }
     }
 
-    fn handle_event<F>(&mut self, event: Event<C::Scalar, IMSegment<C>>, cb: &mut F) -> bool
+    fn handle_event<F>(
+        &mut self,
+        event: Event<C::Scalar, IMSegment<C>>,
+        cb: &mut F,
+    ) -> Result<bool, Error>
     where
         F: for<'a> FnMut(&'a IMSegment<C>, EventType),
     {
         use EventType::*;
         let segment = match IMSegment::is_correct(&event) {
-            false => return false,
+            false => return Ok(false),
             _ => event.payload,
         };
         trace!(
@@ -64,8 +72,8 @@ impl<C: Cross + Clone> Sweep<C> {
             seg = segment,
         );
 
-        let prev = self.active_segments.previous(&segment).cloned();
-        let next = self.active_segments.next(&segment).cloned();
+        let prev = self.active_segments.previous(&segment)?.cloned();
+        let next = self.active_segments.next(&segment)?.cloned();
 
         match &event.ty {
             LineLeft => {
@@ -92,7 +100,7 @@ impl<C: Cross + Clone> Sweep<C> {
                         };
                         if handle_end_event {
                             let event = self.events.pop().unwrap();
-                            let done = self.handle_event(event, cb);
+                            let done = self.handle_event(event, cb)?;
                             debug_assert!(done, "special right-end event handling failed")
                         }
 
@@ -121,7 +129,7 @@ impl<C: Cross + Clone> Sweep<C> {
                                     should_add = false;
                                     break;
                                 }
-                                return true;
+                                return Ok(true);
                             }
                         }
                     }
@@ -131,7 +139,7 @@ impl<C: Cross + Clone> Sweep<C> {
                     // Add current segment as active
                     // Safety: `self.segments` is a `Box` that is not
                     // de-allocated until `self` is dropped.
-                    self.active_segments.insert_active(segment.clone());
+                    self.active_segments.insert_active(segment.clone())?;
                 }
 
                 let mut cb_seg = Some(segment);
@@ -144,7 +152,7 @@ impl<C: Cross + Clone> Sweep<C> {
             LineRight => {
                 // Safety: `self.segments` is a `Box` that is not
                 // de-allocated until `self` is dropped.
-                self.active_segments.remove_active(&segment);
+                self.active_segments.remove_active(&segment)?;
 
                 let mut cb_seg = Some(segment);
                 while let Some(seg) = cb_seg {
@@ -193,16 +201,16 @@ impl<C: Cross + Clone> Sweep<C> {
                 // are confident about the logic.
             }
         }
-        true
+        Ok(true)
     }
 
     #[inline]
-    pub(super) fn prev_active(&self, c: &Crossing<C>) -> Option<&Segment<C>> {
+    pub(super) fn prev_active(&self, c: &Crossing<C>) -> Result<Option<&Segment<C>>, Error> {
         debug_assert!(c.at_left);
-        self.active_segments.previous(&c.segment).map(|aseg| {
+        Ok(self.active_segments.previous(&c.segment)?.map(|aseg| {
             let im: &IMSegment<_> = aseg.borrow();
             im.borrow()
-        })
+        }))
     }
 
     #[inline]

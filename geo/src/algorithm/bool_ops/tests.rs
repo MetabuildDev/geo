@@ -69,7 +69,7 @@ fn check_sweep(wkt1: &str, wkt2: &str, ty: OpType) -> Result<MultiPolygon<f64>> 
     bop.add_multi_polygon(&poly1, true);
     bop.add_multi_polygon(&poly2, false);
 
-    let rings = bop.sweep();
+    let rings = bop.sweep()?;
     info!("Got {n} rings", n = rings.len());
     for ring in rings.iter() {
         info!(
@@ -79,7 +79,7 @@ fn check_sweep(wkt1: &str, wkt2: &str, ty: OpType) -> Result<MultiPolygon<f64>> 
         );
     }
 
-    let polygons = assemble(rings);
+    let polygons = assemble(rings)?;
     info!("got {n} output polygons", n = polygons.len());
     for p in polygons.iter() {
         info!("\t{wkt}", wkt = p.to_wkt());

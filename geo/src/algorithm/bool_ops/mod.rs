@@ -1,5 +1,6 @@
 use geo_types::MultiPolygon;
 
+use crate::sweep::Error;
 use crate::{CoordsIter, GeoFloat, GeoNum, Polygon};
 
 /// Boolean Operations on geometry.
@@ -24,17 +25,17 @@ use crate::{CoordsIter, GeoFloat, GeoNum, Polygon};
 pub trait BooleanOps: Sized {
     type Scalar: GeoNum;
 
-    fn boolean_op(&self, other: &Self, op: OpType) -> MultiPolygon<Self::Scalar>;
-    fn intersection(&self, other: &Self) -> MultiPolygon<Self::Scalar> {
+    fn boolean_op(&self, other: &Self, op: OpType) -> Result<MultiPolygon<Self::Scalar>, Error>;
+    fn intersection(&self, other: &Self) -> Result<MultiPolygon<Self::Scalar>, Error> {
         self.boolean_op(other, OpType::Intersection)
     }
-    fn union(&self, other: &Self) -> MultiPolygon<Self::Scalar> {
+    fn union(&self, other: &Self) -> Result<MultiPolygon<Self::Scalar>, Error> {
         self.boolean_op(other, OpType::Union)
     }
-    fn xor(&self, other: &Self) -> MultiPolygon<Self::Scalar> {
+    fn xor(&self, other: &Self) -> Result<MultiPolygon<Self::Scalar>, Error> {
         self.boolean_op(other, OpType::Xor)
     }
-    fn difference(&self, other: &Self) -> MultiPolygon<Self::Scalar> {
+    fn difference(&self, other: &Self) -> Result<MultiPolygon<Self::Scalar>, Error> {
         self.boolean_op(other, OpType::Difference)
     }
 }
@@ -50,23 +51,23 @@ pub enum OpType {
 impl<T: GeoFloat> BooleanOps for Polygon<T> {
     type Scalar = T;
 
-    fn boolean_op(&self, other: &Self, op: OpType) -> MultiPolygon<Self::Scalar> {
+    fn boolean_op(&self, other: &Self, op: OpType) -> Result<MultiPolygon<Self::Scalar>, Error> {
         let mut bop = Op::new(op, self.coords_count() + other.coords_count());
         bop.add_polygon(self, true);
         bop.add_polygon(other, false);
-        let rings = bop.sweep();
-        assemble(rings).into()
+        let rings = bop.sweep()?;
+        Ok(assemble(rings)?.into())
     }
 }
 impl<T: GeoFloat> BooleanOps for MultiPolygon<T> {
     type Scalar = T;
 
-    fn boolean_op(&self, other: &Self, op: OpType) -> MultiPolygon<Self::Scalar> {
+    fn boolean_op(&self, other: &Self, op: OpType) -> Result<MultiPolygon<Self::Scalar>, Error> {
         let mut bop = Op::new(op, self.coords_count() + other.coords_count());
         bop.add_multi_polygon(self, true);
         bop.add_multi_polygon(other, false);
-        let rings = bop.sweep();
-        assemble(rings).into()
+        let rings = bop.sweep()?;
+        Ok(assemble(rings)?.into())
     }
 }
 

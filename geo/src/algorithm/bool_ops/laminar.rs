@@ -4,11 +4,11 @@ use crate::GeoFloat as Float;
 use crate::{GeoFloat, Polygon};
 use log::trace;
 
-use crate::sweep::{Cross, Crossing, CrossingsIter, LineOrPoint};
+use crate::sweep::{Cross, Crossing, CrossingsIter, Error, LineOrPoint};
 
 use super::Ring;
 
-pub fn assemble<T: Float>(rings: Vec<Ring<T>>) -> Vec<Polygon<T>> {
+pub fn assemble<T: Float>(rings: Vec<Ring<T>>) -> Result<Vec<Polygon<T>>, Error> {
     let mut parents = vec![0; rings.len()];
     let edges: Vec<Edge<_>> = rings
         .iter()
@@ -42,7 +42,7 @@ pub fn assemble<T: Float>(rings: Vec<Ring<T>>) -> Vec<Polygon<T>> {
             if !first.at_left {
                 continue;
             }
-            let active = sweep.prev_active(first);
+            let active = sweep.prev_active(first)?;
             trace!(
                 "active of {first_geom:?}: {active:?}",
                 first_geom = first.cross.geom
@@ -98,7 +98,7 @@ pub fn assemble<T: Float>(rings: Vec<Ring<T>>) -> Vec<Polygon<T>> {
         }
     });
 
-    polygons.into_iter().flatten().collect()
+    Ok(polygons.into_iter().flatten().collect())
 }
 
 #[derive(Debug, Clone)]

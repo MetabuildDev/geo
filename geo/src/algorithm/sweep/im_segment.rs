@@ -18,7 +18,7 @@ impl<C: Cross> Borrow<Segment<C>> for IMSegment<C> {
 // issue.
 impl<C: Cross> Borrow<Active<Segment<C>>> for Active<IMSegment<C>> {
     fn borrow(&self) -> &Active<Segment<C>> {
-        Active::active_ref(unsafe { self.deref().get() })
+        Active::active_ref(unsafe { self.deref().get() }).unwrap()
     }
 }
 

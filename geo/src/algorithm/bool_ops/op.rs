@@ -2,7 +2,7 @@ use std::{cell::Cell, cmp::Ordering, fmt::Debug};
 
 use super::*;
 use crate::{
-    sweep::{Cross, Crossing, CrossingsIter, LineOrPoint},
+    sweep::{Cross, Crossing, CrossingsIter, Error, LineOrPoint},
     winding_order::WindingOrder,
     CoordsIter, GeoFloat as Float, LineString, Polygon,
 };
@@ -59,7 +59,7 @@ impl<T: Float> Op<T> {
         }
     }
 
-    pub fn sweep(&self) -> Vec<Ring<T>> {
+    pub fn sweep(&self) -> Result<Vec<Ring<T>>, Error> {
         let mut iter = CrossingsIter::from_iter(self.edges.iter());
         let mut rings = Rings::default();
 
@@ -136,7 +136,7 @@ impl<T: Float> Op<T> {
                 botmost = botmost_start_segment.line,
             );
 
-            let prev = iter.prev_active(&botmost_start_segment);
+            let prev = iter.prev_active(&botmost_start_segment)?;
             trace!(
                 "prev-active(bot-most): {prev:?}",
                 prev = prev.map(|(_, p)| p.geom)
@@ -176,7 +176,7 @@ impl<T: Float> Op<T> {
             }
         }
 
-        rings.finish()
+        Ok(rings.finish())
     }
 }
 

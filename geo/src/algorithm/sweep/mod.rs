@@ -25,3 +25,6 @@ use proc::Sweep;
 mod iter;
 pub use iter::Intersections;
 pub(crate) use iter::{Crossing, CrossingsIter};
+
+mod error;
+pub use error::*;

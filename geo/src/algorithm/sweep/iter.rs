@@ -112,8 +112,11 @@ where
         &self.segments
     }
 
-    pub(crate) fn prev_active(&self, c: &Crossing<C>) -> Option<(LineOrPoint<C::Scalar>, &C)> {
-        self.sweep.prev_active(c).map(|s| (s.geom, &s.cross))
+    pub(crate) fn prev_active(
+        &self,
+        c: &Crossing<C>,
+    ) -> Result<Option<(LineOrPoint<C::Scalar>, &C)>, Error> {
+        Ok(self.sweep.prev_active(c)?.map(|s| (s.geom, &s.cross)))
     }
 }
 
@@ -137,7 +140,7 @@ impl<C> Iterator for CrossingsIter<C>
 where
     C: Cross + Clone,
 {
-    type Item = Coordinate<C::Scalar>;
+    type Item = Result<Coordinate<C::Scalar>, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let segments = &mut self.segments;
@@ -146,19 +149,22 @@ where
         let mut last_point = self.sweep.peek_point();
         debug!("pt: {last_point:?}");
         while last_point == self.sweep.peek_point() && self.sweep.peek_point().is_some() {
-            last_point = self.sweep.next_event(|seg, ty| {
+            last_point = match self.sweep.next_event(|seg, ty| {
                 trace!(
                     "cb: {seg:?} {ty:?} (crossable = {cross:?})",
                     cross = seg.cross().line()
                 );
                 segments.push(Crossing::from_segment(seg, ty))
-            });
+            }) {
+                Ok(last_point) => last_point,
+                Err(e) => return Some(Err(e)),
+            };
         }
 
         if segments.is_empty() {
             None
         } else {
-            last_point.map(|p| *p)
+            last_point.map(|p| Ok(*p))
         }
     }
 }
@@ -202,7 +208,7 @@ pub struct Intersections<C: Cross + Clone> {
     idx: usize,
     jdx: usize,
     is_overlap: bool,
-    pt: Option<Coordinate<C::Scalar>>,
+    pt: Option<Result<Coordinate<C::Scalar>, Error>>,
 }
 
 impl<C> FromIterator<C> for Intersections<C>
@@ -265,7 +271,7 @@ where
         }
     }
 
-    fn step(&mut self) -> bool {
+    fn step(&mut self) -> Result<bool, Error> {
         let seg_len = self.inner.intersections_mut().len();
         if 1 + self.jdx < seg_len {
             self.is_overlap =
@@ -276,8 +282,10 @@ where
             if 1 + self.idx >= seg_len {
                 loop {
                     self.pt = self.inner.next();
-                    if self.pt.is_none() {
-                        return false;
+                    match &self.pt {
+                        Some(Err(e)) => return Err(e.clone()),
+                        None => return Ok(false),
+                        _ => {}
                     }
                     if self.inner.intersections_mut().len() > 1 {
                         break;
@@ -288,7 +296,7 @@ where
             self.is_overlap = self.inner.intersections_mut()[self.idx].has_overlap;
             self.jdx = self.idx + 1;
         }
-        true
+        Ok(true)
     }
 }
 
@@ -296,17 +304,19 @@ impl<C> Iterator for Intersections<C>
 where
     C: Cross + Clone,
 {
-    type Item = (C, C, LineIntersection<C::Scalar>);
+    type Item = Result<(C, C, LineIntersection<C::Scalar>), Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if !self.step() {
-                return None;
+            match self.step() {
+                Ok(false) => return None,
+                Err(e) => return Some(Err(e)),
+                _ => {}
             }
             let it = self.intersection();
             debug!("\t{it:?}", it = it.is_some());
             if let Some(result) = it {
-                return Some(result);
+                return Some(Ok(result));
             }
         }
     }
@@ -370,6 +380,7 @@ pub(super) mod tests {
 
         let iter: Intersections<_> = input.iter().collect();
         let count = iter
+            .map(Result::unwrap)
             .inspect(|(a, b, _int)| {
                 let lp_a = LineOrPoint::from(**a);
                 let lp_b = LineOrPoint::from(**b);
